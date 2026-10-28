@@ -28,6 +28,16 @@ def call(method, path, params=None):
         raise SystemExit(f"API error {e.code}: {e.read().decode()}")
 
 
+def wait_ready(cid, item_id):
+    for _ in range(20):
+        st = call("GET", cid, {"fields": "status_code"}).get("status_code")
+        if st == "FINISHED":
+            return
+        if st == "ERROR":
+            raise SystemExit(f"Container error for {item_id}")
+        time.sleep(3)
+
+
 def main():
     queue_path, posted_path = sys.argv[1], sys.argv[2]
     dry = "--dry-run" in sys.argv
@@ -43,20 +53,23 @@ def main():
     if me.get("username") != EXPECTED_USER:
         raise SystemExit(f"Wrong account: {me.get('username')}")
 
-    image_url = IMG_BASE + item["image"]
-    print(f"Next: {item['id']} {image_url}")
+    images = item.get("images") or [item["image"]]
+    urls = [IMG_BASE + i for i in images]
+    print(f"Next: {item['id']} {urls}")
     if dry:
         return
 
-    container = call("POST", "me/media", {"image_url": image_url, "caption": item["caption"]})
-    cid = container["id"]
-    for _ in range(20):
-        st = call("GET", cid, {"fields": "status_code"}).get("status_code")
-        if st == "FINISHED":
-            break
-        if st == "ERROR":
-            raise SystemExit(f"Container error for {item['id']}")
-        time.sleep(3)
+    if len(urls) == 1:
+        cid = call("POST", "me/media", {"image_url": urls[0], "caption": item["caption"]})["id"]
+    else:
+        children = []
+        for u in urls:
+            child = call("POST", "me/media", {"image_url": u, "is_carousel_item": "true"})["id"]
+            wait_ready(child, item["id"])
+            children.append(child)
+        cid = call("POST", "me/media", {"media_type": "CAROUSEL", "children": ",".join(children),
+                                        "caption": item["caption"]})["id"]
+    wait_ready(cid, item["id"])
     media = call("POST", "me/media_publish", {"creation_id": cid})
     info = call("GET", media["id"], {"fields": "permalink"})
 
