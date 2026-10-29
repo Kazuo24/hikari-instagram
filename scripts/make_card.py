@@ -82,9 +82,10 @@ def _base():
 def make_point(out, num, page, head_lines, body_lines):
     """Content slide: number badge, heading, body text."""
     im, d = _base()
-    nf = ImageFont.truetype(BOLD, 56)
-    d.ellipse((480, 140, 600, 260), fill=PINK)
-    center(d, 162, num, nf, (255, 255, 255))
+    nf = ImageFont.truetype(BOLD, 56 if len(num) <= 2 else 48)
+    nw = max(120, d.textlength(num, font=nf) + 70)
+    d.rounded_rectangle(((1080 - nw) / 2, 140, (1080 + nw) / 2, 260), radius=60, fill=PINK)
+    center(d, 162 if len(num) <= 2 else 168, num, nf, (255, 255, 255))
     hf = fit(d, head_lines, BOLD, 76, 800)
     bf = fit(d, body_lines, MED, 42, 780)
     hl, bl = int(hf.size * 1.25), int(bf.size * 1.7)
