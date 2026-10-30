@@ -29,13 +29,25 @@ def call(method, path, params=None):
 
 
 def wait_ready(cid, item_id):
-    for _ in range(20):
+    for _ in range(60):
         st = call("GET", cid, {"fields": "status_code"}).get("status_code")
         if st == "FINISHED":
             return
         if st == "ERROR":
             raise SystemExit(f"Container error for {item_id}")
-        time.sleep(3)
+        time.sleep(5)
+    raise SystemExit(f"Container not ready for {item_id}: {st}")
+
+
+def publish(cid):
+    # Code 9007 means "not ready yet": nothing was published, so retrying is safe.
+    for attempt in range(6):
+        try:
+            return call("POST", "me/media_publish", {"creation_id": cid})
+        except SystemExit as e:
+            if "9007" not in str(e) or attempt == 5:
+                raise
+            time.sleep(10)
 
 
 def main():
@@ -70,7 +82,7 @@ def main():
         cid = call("POST", "me/media", {"media_type": "CAROUSEL", "children": ",".join(children),
                                         "caption": item["caption"]})["id"]
     wait_ready(cid, item["id"])
-    media = call("POST", "me/media_publish", {"creation_id": cid})
+    media = publish(cid)
     info = call("GET", media["id"], {"fields": "permalink"})
 
     posted.append({"id": item["id"], "media_id": media["id"],
