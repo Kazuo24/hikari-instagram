@@ -9,6 +9,39 @@ import json, sys, time, urllib.parse, urllib.request
 API = "https://graph.instagram.com/v21.0"
 IMG_BASE = "https://raw.githubusercontent.com/Kazuo24/hikari-instagram/main/"
 EXPECTED_USER = "hikarihikari.ai.jp"
+# Kazuo 2026-11-05: every post carries the note link, and a product (PR) post
+# never goes out first: it always follows a non-PR post.
+NOTE_URL = "https://note.com/hikarihikari01/n/n1a20f0852603"
+NOTE_BLOCK = "📖 ヒカリのnote（自己紹介・お得情報まとめ）\n" + NOTE_URL
+
+
+def is_pr(item):
+    return item["caption"].lstrip().startswith("【PR】")
+
+
+def with_note(caption):
+    if NOTE_URL in caption:
+        return caption
+    lines = caption.rstrip().split("\n")
+    # put the note link just above the hashtag line, if there is one
+    if lines and lines[-1].lstrip().startswith("#"):
+        return "\n".join(lines[:-1]).rstrip() + "\n\n" + NOTE_BLOCK + "\n" + lines[-1]
+    return caption.rstrip() + "\n\n" + NOTE_BLOCK
+
+
+def pick_next(queue, posted):
+    done = {p["id"] for p in posted}
+    pending = [q for q in queue if q["id"] not in done]
+    if not pending:
+        return None
+    by_id = {q["id"]: q for q in queue}
+    last = by_id.get(posted[-1]["id"]) if posted else None
+    last_was_pr = last is None or is_pr(last)  # nothing posted yet counts as "no warm-up"
+    if is_pr(pending[0]) and last_was_pr:
+        warm = next((q for q in pending if not is_pr(q)), None)
+        if warm is not None:
+            return warm
+    return pending[0]
 
 
 def call(method, path, params=None):
@@ -55,8 +88,7 @@ def main():
     dry = "--dry-run" in sys.argv
     queue = json.load(open(queue_path, encoding="utf-8"))
     posted = json.load(open(posted_path, encoding="utf-8"))
-    done = {p["id"] for p in posted}
-    item = next((q for q in queue if q["id"] not in done), None)
+    item = pick_next(queue, posted)
     if item is None:
         print("QUEUE_EMPTY")
         return
@@ -65,14 +97,16 @@ def main():
     if me.get("username") != EXPECTED_USER:
         raise SystemExit(f"Wrong account: {me.get('username')}")
 
+    caption = with_note(item["caption"])
     images = item.get("images") or [item["image"]]
     urls = [IMG_BASE + i for i in images]
     print(f"Next: {item['id']} {urls}")
     if dry:
+        print(caption)
         return
 
     if len(urls) == 1:
-        cid = call("POST", "me/media", {"image_url": urls[0], "caption": item["caption"]})["id"]
+        cid = call("POST", "me/media", {"image_url": urls[0], "caption": caption})["id"]
     else:
         children = []
         for u in urls:
@@ -80,7 +114,7 @@ def main():
             wait_ready(child, item["id"])
             children.append(child)
         cid = call("POST", "me/media", {"media_type": "CAROUSEL", "children": ",".join(children),
-                                        "caption": item["caption"]})["id"]
+                                        "caption": caption})["id"]
     wait_ready(cid, item["id"])
     media = publish(cid)
     info = call("GET", media["id"], {"fields": "permalink"})
