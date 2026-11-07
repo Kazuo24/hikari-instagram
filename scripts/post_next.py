@@ -117,13 +117,21 @@ def main():
                                         "caption": caption})["id"]
     wait_ready(cid, item["id"])
     media = publish(cid)
-    info = call("GET", media["id"], {"fields": "permalink"})
-
-    posted.append({"id": item["id"], "media_id": media["id"],
-                   "permalink": info.get("permalink"),
-                   "posted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    # Record the post right away, so a later API error (e.g. rate limit on the
+    # permalink lookup, 2026-11-07) can never lead to a second, duplicate post.
+    entry = {"id": item["id"], "media_id": media["id"], "permalink": None,
+             "posted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    posted.append(entry)
     with open(posted_path, "w", encoding="utf-8") as f:
         json.dump(posted, f, ensure_ascii=False, indent=2)
+    try:
+        info = call("GET", media["id"], {"fields": "permalink"})
+        entry["permalink"] = info.get("permalink")
+        with open(posted_path, "w", encoding="utf-8") as f:
+            json.dump(posted, f, ensure_ascii=False, indent=2)
+    except SystemExit as e:
+        print(f"Permalink lookup failed (post is published): {e}")
+    info = {"permalink": entry["permalink"]}
     print(f"POSTED {item['id']} {info.get('permalink')}")
 
 
