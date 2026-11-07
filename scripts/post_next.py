@@ -116,7 +116,20 @@ def main():
         cid = call("POST", "me/media", {"media_type": "CAROUSEL", "children": ",".join(children),
                                         "caption": caption})["id"]
     wait_ready(cid, item["id"])
-    media = publish(cid)
+    try:
+        media = publish(cid)
+    except SystemExit as e:
+        # Since 2026-11-07 Instagram sometimes answers media_publish with
+        # "Application request limit reached" (code 4 / 2207051) even though
+        # the post went live. Check the newest post before giving up, so we
+        # record it instead of posting it again next time.
+        time.sleep(15)
+        latest = call("GET", "me/media", {"fields": "id,caption,timestamp", "limit": 1})["data"]
+        if latest and latest[0].get("caption", "").strip() == caption.strip():
+            print(f"Publish reported an error but the post is live: {e}")
+            media = {"id": latest[0]["id"]}
+        else:
+            raise
     # Record the post right away, so a later API error (e.g. rate limit on the
     # permalink lookup, 2026-11-07) can never lead to a second, duplicate post.
     entry = {"id": item["id"], "media_id": media["id"], "permalink": None,
