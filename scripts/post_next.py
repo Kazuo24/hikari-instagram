@@ -67,8 +67,8 @@ def call(method, path, params=None):
         raise SystemExit(f"API error {e.code}: {e.read().decode()}")
 
 
-def wait_ready(cid, item_id):
-    for _ in range(60):
+def wait_ready(cid, item_id, tries=60):
+    for _ in range(tries):
         st = call("GET", cid, {"fields": "status_code"}).get("status_code")
         if st == "FINISHED":
             return
@@ -106,12 +106,27 @@ def main():
     caption = with_note(item["caption"])
     images = item.get("images") or [item["image"]]
     urls = [IMG_BASE + i for i in images]
-    print(f"Next: {item['id']} {urls}")
+    print(f"Next: {item['id']} {item.get('video') or urls}")
     if dry:
         print(caption)
         return
 
-    if len(urls) == 1:
+    cid = None
+    if item.get("video"):
+        # PDCA 2026-11-13: one post a day goes out as a Reel (slide video from
+        # scripts/make_reel.py), to compare its reach with the image posts.
+        # If the Reel can't be prepared, fall back to the same slides as images.
+        try:
+            cid = call("POST", "me/media", {"media_type": "REELS", "video_url": IMG_BASE + item["video"],
+                                            "caption": caption, "share_to_feed": "true"})["id"]
+            wait_ready(cid, item["id"], tries=120)
+        except SystemExit as e:
+            print(f"Reel failed, posting images instead: {e}")
+            item = dict(item, video=None)
+            cid = None
+    if cid is not None:
+        pass
+    elif len(urls) == 1:
         cid = call("POST", "me/media", {"image_url": urls[0], "caption": caption})["id"]
     else:
         children = []
@@ -139,6 +154,7 @@ def main():
     # Record the post right away, so a later API error (e.g. rate limit on the
     # permalink lookup, 2026-11-07) can never lead to a second, duplicate post.
     entry = {"id": item["id"], "media_id": media["id"], "permalink": None,
+             "format": "reel" if item.get("video") else ("carousel" if len(urls) > 1 else "image"),
              "posted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     posted.append(entry)
     with open(posted_path, "w", encoding="utf-8") as f:
