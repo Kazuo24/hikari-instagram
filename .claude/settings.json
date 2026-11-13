@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_LOG_DIR=.claude-logs python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude_to_obsidian.py\" hook --write-only",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_LOG_DIR=.claude-logs python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude_to_obsidian.py\" hook --write-only",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_LOG_DIR=.claude-logs python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude_to_obsidian.py\" hook",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_LOG_DIR=.claude-logs python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/claude_to_obsidian.py\" hook",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  }
+}
