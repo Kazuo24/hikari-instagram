@@ -4,7 +4,7 @@ Auth is injected by the environment's network secret for graph.instagram.com,
 so no token is read or stored here.
 Usage: python3 -I post_next.py <queue.json> <posted.json> [--dry-run]
 """
-import json, sys, time, urllib.parse, urllib.request
+import json, os, sys, time, urllib.parse, urllib.request
 
 API = "https://graph.instagram.com/v21.0"
 IMG_BASE = "https://raw.githubusercontent.com/Kazuo24/hikari-instagram/main/"
@@ -12,6 +12,7 @@ EXPECTED_USER = "hikarihikari.ai.jp"
 # Kazuo 2026-11-05: every post carries the note link, and a product (PR) post
 # never goes out first: it always follows a non-PR post.
 NOTE_URL = "https://note.com/hikarihikari01/n/n1a20f0852603"
+PAUSE_PR_FILE = "/mnt/project-files/instagram/auto/pause_pr"
 NOTE_BLOCK = "📖 ヒカリのnote（自己紹介・お得情報まとめ）\n" + NOTE_URL
 
 
@@ -34,6 +35,11 @@ def pick_next(queue, posted):
     pending = [q for q in queue if q["id"] not in done]
     if not pending:
         return None
+    # Kazuo 2026-11-13: until likes grow, post only empathy (non-PR) posts.
+    # The pause is on while this file exists next to queue.json.
+    if os.path.exists(PAUSE_PR_FILE):
+        warm = next((q for q in pending if not is_pr(q)), None)
+        return warm
     by_id = {q["id"]: q for q in queue}
     last = by_id.get(posted[-1]["id"]) if posted else None
     last_was_pr = last is None or is_pr(last)  # nothing posted yet counts as "no warm-up"
