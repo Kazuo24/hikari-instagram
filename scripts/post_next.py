@@ -155,6 +155,7 @@ def main():
     # permalink lookup, 2026-11-07) can never lead to a second, duplicate post.
     entry = {"id": item["id"], "media_id": media["id"], "permalink": None,
              "format": "reel" if item.get("video") else ("carousel" if len(urls) > 1 else "image"),
+             "hook": item.get("hook"),
              "posted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     posted.append(entry)
     with open(posted_path, "w", encoding="utf-8") as f:

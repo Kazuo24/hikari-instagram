@@ -1,6 +1,6 @@
 """Join a post's slide images into a short 9:16 slideshow video for a Reel.
 
-Usage: python3 -I make_reel.py <out.mp4> <img1.jpg> [<img2.jpg> ...]
+Usage: python3 -I make_reel.py <out.mp4> [--durs 1.5,4,2.5] <img1.jpg> [<img2.jpg> ...]
 Each slide shows for about 4 seconds (8 seconds or more in total), padded onto
 a 1080x1920 pink background. A silent audio track is added because some
 players and the Reels uploader handle video-only files poorly.
@@ -12,12 +12,18 @@ PER = 4.0
 
 
 def main():
-    out, imgs = sys.argv[1], sys.argv[2:]
-    per = max(PER, 8.0 / len(imgs))
+    out, rest = sys.argv[1], sys.argv[2:]
+    durs = None
+    if rest and rest[0] == "--durs":
+        durs = [float(x) for x in rest[1].split(",")]
+        rest = rest[2:]
+    imgs = rest
+    if durs is None:
+        durs = [max(PER, 8.0 / len(imgs))] * len(imgs)
     cmd = ["ffmpeg", "-y", "-loglevel", "error"]
-    for i in imgs:
-        cmd += ["-loop", "1", "-t", str(per), "-i", i]
-    cmd += ["-f", "lavfi", "-t", str(per * len(imgs)), "-i", "anullsrc=r=44100:cl=stereo"]
+    for i, d in zip(imgs, durs):
+        cmd += ["-loop", "1", "-t", str(d), "-i", i]
+    cmd += ["-f", "lavfi", "-t", str(sum(durs)), "-i", "anullsrc=r=44100:cl=stereo"]
     parts = "".join(
         f"[{k}:v]scale=1080:-2,pad=1080:1920:0:(oh-ih)/2:color={BG},setsar=1,fps=30[v{k}];"
         for k in range(len(imgs)))
