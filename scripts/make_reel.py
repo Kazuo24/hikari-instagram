@@ -22,10 +22,14 @@ def main():
         durs = [max(PER, 8.0 / len(imgs))] * len(imgs)
     cmd = ["ffmpeg", "-y", "-loglevel", "error"]
     for i, d in zip(imgs, durs):
-        cmd += ["-loop", "1", "-t", str(d), "-i", i]
+        cmd += ["-i", i]  # one frame; zoompan below makes d seconds of video
     cmd += ["-f", "lavfi", "-t", str(sum(durs)), "-i", "anullsrc=r=44100:cl=stereo"]
     parts = "".join(
-        f"[{k}:v]scale=1080:-2,pad=1080:1920:0:(oh-ih)/2:color={BG},setsar=1,fps=30[v{k}];"
+        # slow push-in on each slide (Kazuo's Instagram guide 11/15: a camera that
+        # slowly comes closer keeps people watching)
+        f"[{k}:v]scale=1080:-2,pad=1080:1920:0:(oh-ih)/2:color={BG},setsar=1,"
+        f"scale=2160:3840,zoompan=z='min(1+0.0015*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+        f":d={int(round(durs[k]*30))}:s=1080x1920:fps=30[v{k}];"
         for k in range(len(imgs)))
     parts += "".join(f"[v{k}]" for k in range(len(imgs))) + f"concat=n={len(imgs)}:v=1:a=0[v]"
     cmd += ["-filter_complex", parts, "-map", "[v]", "-map", f"{len(imgs)}:a",
