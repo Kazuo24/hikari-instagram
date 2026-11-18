@@ -1,6 +1,6 @@
 """Join a post's slide images into a short 9:16 slideshow video for a Reel.
 
-Usage: python3 -I make_reel.py <out.mp4> [--durs 1.5,4,2.5] <img1.jpg> [<img2.jpg> ...]
+Usage: python3 -I make_reel.py <out.mp4> [--bg 0xFFFFFF] [--durs 1.5,4,2.5] <img1.jpg> [<img2.jpg> ...]
 Each slide shows for about 4 seconds (8 seconds or more in total), padded onto
 a 1080x1920 pink background. A silent audio track is added because some
 players and the Reels uploader handle video-only files poorly.
@@ -14,6 +14,9 @@ PER = 4.0
 def main():
     out, rest = sys.argv[1], sys.argv[2:]
     durs = None
+    bg = BG
+    if rest and rest[0] == "--bg":
+        bg, rest = rest[1], rest[2:]
     if rest and rest[0] == "--durs":
         durs = [float(x) for x in rest[1].split(",")]
         rest = rest[2:]
@@ -27,7 +30,7 @@ def main():
     parts = "".join(
         # slow push-in on each slide (Kazuo's Instagram guide 11/15: a camera that
         # slowly comes closer keeps people watching)
-        f"[{k}:v]scale=1080:-2,pad=1080:1920:0:(oh-ih)/2:color={BG},setsar=1,"
+        f"[{k}:v]scale=1080:-2,pad=1080:1920:0:(oh-ih)/2:color={bg},setsar=1,"
         f"scale=2160:3840,zoompan=z='min(1+0.0015*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
         f":d={int(round(durs[k]*30))}:s=1080x1920:fps=30[v{k}];"
         for k in range(len(imgs)))
